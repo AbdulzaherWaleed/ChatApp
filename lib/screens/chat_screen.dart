@@ -1,13 +1,58 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+final _firestore = FirebaseFirestore.instance;
+late User signInUser; //This will give us The email
+
 
 class ChatScreen extends StatefulWidget {
-  static const String screenRoute = 'chat_screen' ;
+  static const String screenRoute = 'chat_screen';
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final messageTextController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
+  String? messageText; // This will give us the message
+
+  @override
+  void initState() {
+    super.initState();
+    getCurrentUser();
+  }
+
+  void getCurrentUser() {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        signInUser = user;
+        print(signInUser.email);
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  // void getMessages() async {
+  //   final messages = await _firestore.collection('Messages').get();
+  // for (var message in messages.docs){
+  //  print(message.data());
+
+  //  }
+  //}
+
+  void messagesStreams() async {
+    await for (var snapshot in _firestore.collection('Messages').snapshots()) {
+      for (var message in snapshot.docs) {
+        print(message.data());
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -16,7 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Row(
           children: [
             Image.asset(
-              'images/logochat.png',
+              'images/chat2.png',
               height: 25,
             ),
             SizedBox(
@@ -24,14 +69,16 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Text(
               "Message Me ",
-              style: TextStyle(color: Colors.brown),
+              style: TextStyle(color: Colors.red),
             ),
           ],
         ),
         actions: [
           IconButton(
+            color: Colors.black,
             onPressed: () {
-              //add here logout function
+              _auth.signOut();
+              Navigator.pop(context);
             },
             icon: Icon(Icons.close),
           )
@@ -42,7 +89,7 @@ class _ChatScreenState extends State<ChatScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(),
+            MesaageStreamBuilder(),
             Container(
               decoration: BoxDecoration(
                 border: Border(
@@ -57,15 +104,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   Expanded(
                     child: TextField(
-                      onChanged: (value) {},
+                      controller: messageTextController,
+                      onChanged: (value) {
+                        messageText = value;
+                      },
                       decoration: InputDecoration(
                           contentPadding: EdgeInsets.symmetric(
                             vertical: 10,
                             horizontal: 20,
                           ),
                           hintText: 'Write your message here... ',
-                          border: InputBorder.none
-                      ),
+                          border: InputBorder.none),
                     ),
                   ),
                   Padding(
@@ -75,12 +124,23 @@ class _ChatScreenState extends State<ChatScreen> {
                       //color: Colors.brown,
                       // borderRadius: BorderRadius.circular(10),
                       child: MaterialButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          messageTextController.clear();
+                          _firestore.collection('Messages').add({
+                            'text': messageText,
+                            'sender': signInUser.email,
+                            'time' : FieldValue.serverTimestamp(),
+                          });
+                        },
                         //minWidth: 200,
                         // height: 42,
                         child: Text(
                           ' Send ',
-                          style: TextStyle(color: Colors.blue[800] , fontWeight: FontWeight.bold , fontSize: 18 ,),
+                          style: TextStyle(
+                            color: Colors.blue[800],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ),
                     ),
@@ -94,3 +154,90 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 }
+class MesaageStreamBuilder extends StatelessWidget {
+  const MesaageStreamBuilder({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('Messages').orderBy('time').snapshots(),
+      builder: (context, snapshot) {
+        List<MessageLine> messageWidgets = [];
+
+        if (!snapshot.hasData) {
+          return Center(
+            child: CircularProgressIndicator(
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+        final messages = snapshot.data!.docs.reversed;
+        for (var message in messages) {
+          final messageText = message.get('text');
+          final messageSender = message.get('sender');
+          final currentUser = signInUser.email;
+
+
+
+          final messageWidget = MessageLine(sender: messageSender,text: messageText,
+          isMe: currentUser == messageSender,
+          );
+
+          messageWidgets.add(messageWidget);
+        }
+
+        return Expanded(
+          child: ListView(
+            reverse: true,
+            padding:  EdgeInsets.symmetric(horizontal: 10 , vertical: 20),
+            children: messageWidgets,
+          ),
+        );
+      },
+    );
+  }
+}
+
+
+class MessageLine extends StatelessWidget {
+  const MessageLine({this.text ,this.sender, required this .isMe , Key? key}) : super(key: key);
+
+  final String? sender;
+  final String? text ;
+  final bool isMe ;
+
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(10.0),
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start ,
+      children:[
+        Text('$sender',style: TextStyle(fontSize: 12,color: Colors.red),),
+
+      Material(
+        elevation: 5,
+        borderRadius:isMe ? BorderRadius.only(
+          topLeft: Radius.circular(30),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ) : BorderRadius.only(
+          topRight: Radius.circular(30),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        color: isMe ?  Colors.blue[800] : Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10 ,horizontal:20 ),
+          child: Text('$text',
+            style: TextStyle(fontSize: 15,color: isMe ? Colors.white :Colors.black45),),
+        ),
+      ),
+      ],
+    ),
+    );
+  }
+}
+

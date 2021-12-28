@@ -3,10 +3,18 @@ import 'package:chatapp/screens/chat_screen.dart';
 import 'package:chatapp/screens/registration_screen.dart';
 import 'package:chatapp/screens/signin_screen.dart';
 import 'package:chatapp/screens/welcome_screen.dart';
-void main (){
-  runApp(Myapp()) ;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(Myapp());
 }
+
 class Myapp extends StatelessWidget {
+  final _auth = FirebaseAuth.instance;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -15,17 +23,15 @@ class Myapp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-
-      initialRoute: WelcomeScreen.screenRoute,
+      initialRoute: _auth.currentUser != null
+          ? ChatScreen.screenRoute
+          : WelcomeScreen.screenRoute,
       routes: {
-        WelcomeScreen.screenRoute : (context) => WelcomeScreen(),
-        SignInScreen.screenRoute : (context) => SignInScreen(),
-        Registration_Screen.screenRoute :(context) => Registration_Screen(),
-        ChatScreen.screenRoute : (context) => ChatScreen(),
+        WelcomeScreen.screenRoute: (context) => WelcomeScreen(),
+        SignInScreen.screenRoute: (context) => SignInScreen(),
+        Registration_Screen.screenRoute: (context) => Registration_Screen(),
+        ChatScreen.screenRoute: (context) => ChatScreen(),
       },
     );
-
-
   }
-
 }
